@@ -5,7 +5,9 @@ A full-stack audit sampling web application for Victoria Chartered Certified Acc
 ## Tech stack
 
 - Backend: Python + Flask
-- Database: SQLite
+- Database:
+	- Local/dev: SQLite
+	- Production: PostgreSQL
 - Frontend: HTML, CSS, vanilla JavaScript
 
 ## Local setup
@@ -33,48 +35,81 @@ python app/backend/app.py
 
 The backend auto-initializes the SQLite database at `data/audit_sampling.sqlite3` by default.
 
-## Deploy to GitHub
+## Environment variables
 
-Run these commands from the project root:
+- `DATABASE_URL`: if set, the app uses PostgreSQL (production mode).
+- `DB_PATH`: used only when `DATABASE_URL` is not set (SQLite mode).
+- `ADMIN_USERNAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`: bootstrap admin account values.
+
+## Step-by-step: GitHub -> Render -> PostgreSQL -> live app
+
+### 1. Push code to GitHub
+
+If this is a fresh local folder:
 
 ```powershell
 git init
 git add .
-git commit -m "Prepare app for Render deployment"
+git commit -m "Add PostgreSQL production deployment"
 git branch -M main
 git remote add origin https://github.com/<your-username>/<your-repo>.git
 git push -u origin main
 ```
 
-If the repository already exists locally, only run:
+If the repo is already connected:
 
 ```powershell
 git add .
-git commit -m "Prepare app for Render deployment"
+git commit -m "Add PostgreSQL production deployment"
 git push
 ```
 
-## Deploy to Render (free web service)
+### 2. Deploy with Render Blueprint
 
-This repo includes `render.yaml`, so you can deploy using Render Blueprint:
+This project includes `render.yaml`, which provisions:
 
-1. Push this code to GitHub.
-2. In Render, choose New + > Blueprint.
-3. Select your GitHub repo.
-4. Render will detect `render.yaml` and create the web service.
-5. Wait for build/deploy, then open the generated URL.
+- A Python web service
+- A managed PostgreSQL database
+- `DATABASE_URL` linked automatically from that database
 
-Current Render start command:
+In Render:
 
-```text
-mkdir -p data && gunicorn --chdir app/backend app:app
-```
+1. Go to Dashboard.
+2. Click **New +**.
+3. Click **Blueprint**.
+4. Connect/select your GitHub repository.
+5. Confirm detected `render.yaml` services.
+6. Click **Apply**.
 
-## Important note about free Render + SQLite
+### 3. Configure required secrets in Render
 
-On Render free instances, local filesystem storage is ephemeral. This means your SQLite data can reset on redeploy or instance restart.
+Open the created web service -> **Environment** and set:
 
-For persistent production data, move to a managed database (for example PostgreSQL) and update the data layer accordingly.
+- `ADMIN_USERNAME`
+- `ADMIN_EMAIL`
+- `ADMIN_PASSWORD` (strong password)
+
+Then redeploy if prompted.
+
+### 4. Verify database linkage
+
+Open the web service -> **Environment** and confirm `DATABASE_URL` is present.
+
+You do not need to manually run schema SQL. The app initializes/migrates tables on startup.
+
+### 5. Validate deployment
+
+1. Open the Render service URL.
+2. Log in with your configured admin credentials.
+3. Create a test engagement and one sample run.
+4. Refresh and verify data still exists.
+
+If data persists after refresh/redeploy, PostgreSQL is wired correctly.
+
+## Render notes
+
+- Free Render web instances can sleep when idle.
+- If Render free PostgreSQL is unavailable in your region/account, select the lowest paid PostgreSQL plan while keeping the same `render.yaml` structure.
 
 ## API endpoints
 

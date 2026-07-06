@@ -4,9 +4,19 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: mkdir -p data && gunicorn --chdir app/backend app:app
+    startCommand: gunicorn --chdir app/backend app:app
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
+      - key: DATABASE_URL
+        fromDatabase:
+          name: auditing-sampling-db
+          property: connectionString
       - key: DB_PATH
         value: data/audit_sampling.sqlite3
+
+databases:
+  - name: auditing-sampling-db
+    databaseName: auditing_sampling
+    user: sampling_user
+    plan: free

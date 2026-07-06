@@ -5,8 +5,15 @@ import secrets
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
+try:
+    import psycopg
+except ImportError:  # Optional locally when running SQLite only.
+    psycopg = None
+
 DB_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data")
 DB_PATH = os.getenv("DB_PATH", os.path.join(DB_DIR, "audit_sampling.sqlite3"))
+DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
+DB_BACKEND = "postgres" if DATABASE_URL else "sqlite"
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "Taku")
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "gatakatakum@gmail.com")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "Taku2002!")
@@ -18,12 +25,120 @@ NAME_PATTERN = re.compile(r"^[A-Za-z-]+$")
 PROFILE_PICTURE_PATTERN = re.compile(r"^data:image/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+$")
 
 
+def _to_pg_query(query):
+    return query.replace("?", "%s")
+
+
+class CompatRow:
+    def __init__(self, columns, values):
+        self._columns = list(columns)
+        self._values = tuple(values)
+        self._index = {name: idx for idx, name in enumerate(self._columns)}
+
+    def __getitem__(self, key):
+        if isinstance(key, str):
+            return self._values[self._index[key]]
+        return self._values[key]
+
+    def __iter__(self):
+        return iter(zip(self._columns, self._values))
+
+    def keys(self):
+        return list(self._columns)
+
+    def get(self, key, default=None):
+        if key in self._index:
+            return self._values[self._index[key]]
+        return default
+
+
+class CursorAdapter:
+    def __init__(self, cursor, backend):
+        self._cursor = cursor
+        self._backend = backend
+
+    @property
+    def lastrowid(self):
+        return getattr(self._cursor, "lastrowid", None)
+
+    @property
+    def description(self):
+        return getattr(self._cursor, "description", None)
+
+    def fetchone(self):
+        row = self._cursor.fetchone()
+        if row is None or self._backend == "sqlite":
+            return row
+        columns = [col.name if hasattr(col, "name") else col[0] for col in (self._cursor.description or [])]
+        return CompatRow(columns, row)
+
+    def fetchall(self):
+        rows = self._cursor.fetchall()
+        if self._backend == "sqlite":
+            return rows
+        columns = [col.name if hasattr(col, "name") else col[0] for col in (self._cursor.description or [])]
+        return [CompatRow(columns, row) for row in rows]
+
+
+class ConnectionAdapter:
+    def __init__(self, connection, backend):
+        self._connection = connection
+        self._backend = backend
+
+    def execute(self, query, params=None):
+        if self._backend == "postgres":
+            query = _to_pg_query(query)
+        cursor = self._connection.execute(query, params or ())
+        return CursorAdapter(cursor, self._backend)
+
+    def executescript(self, script):
+        if self._backend == "sqlite":
+            self._connection.executescript(script)
+            return
+        for statement in [chunk.strip() for chunk in script.split(";") if chunk.strip()]:
+            self.execute(statement)
+
+    def commit(self):
+        self._connection.commit()
+
+    def rollback(self):
+        self._connection.rollback()
+
+    def close(self):
+        self._connection.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if exc_type is not None:
+            try:
+                self.rollback()
+            finally:
+                self.close()
+            return False
+        self.close()
+        return False
+
+
+def _insert_and_get_id(conn, insert_query, params):
+    if DB_BACKEND == "postgres":
+        row = conn.execute(f"{insert_query} RETURNING id", params).fetchone()
+        return row[0] if row is not None else None
+    cursor = conn.execute(insert_query, params)
+    return cursor.lastrowid
+
+
 def get_connection():
+    if DB_BACKEND == "postgres":
+        if psycopg is None:
+            raise RuntimeError("PostgreSQL backend selected but psycopg is not installed")
+        return ConnectionAdapter(psycopg.connect(DATABASE_URL), "postgres")
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    return ConnectionAdapter(conn, "sqlite")
 
 
 def fetch_all(query, params=None):
@@ -190,187 +305,337 @@ def add_audit_event(
 
 def initialize_database():
     with get_connection() as conn:
-        conn.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS admin_users (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              username TEXT UNIQUE NOT NULL,
-                            first_name TEXT,
-                            surname TEXT,
-                            profile_picture TEXT,
-              email TEXT UNIQUE NOT NULL,
-              password_hash TEXT NOT NULL,
-                            is_admin INTEGER DEFAULT 0,
-                            is_active INTEGER DEFAULT 1,
-                                                        failed_login_attempts INTEGER DEFAULT 0,
-                                                        locked_until TEXT,
-                                                        last_failed_login TEXT,
-                            must_reset_password INTEGER DEFAULT 0,
-                            created_by INTEGER REFERENCES admin_users(id),
-              created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            );
+        if DB_BACKEND == "postgres":
+            conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS admin_users (
+                  id SERIAL PRIMARY KEY,
+                  username TEXT UNIQUE NOT NULL,
+                  first_name TEXT,
+                  surname TEXT,
+                  profile_picture TEXT,
+                  email TEXT UNIQUE NOT NULL,
+                  password_hash TEXT NOT NULL,
+                  is_admin INTEGER DEFAULT 0,
+                  is_active INTEGER DEFAULT 1,
+                  failed_login_attempts INTEGER DEFAULT 0,
+                  locked_until TEXT,
+                  last_failed_login TEXT,
+                  must_reset_password INTEGER DEFAULT 0,
+                  created_by INTEGER REFERENCES admin_users(id),
+                  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
 
-                        CREATE TABLE IF NOT EXISTS admin_sessions (
-                            token TEXT PRIMARY KEY,
-                            admin_id INTEGER NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
-                            created_at TEXT NOT NULL,
-                            expires_at TEXT NOT NULL
-                        );
+                CREATE TABLE IF NOT EXISTS admin_sessions (
+                  token TEXT PRIMARY KEY,
+                  admin_id INTEGER NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+                  created_at TEXT NOT NULL,
+                  expires_at TEXT NOT NULL
+                );
 
-            CREATE TABLE IF NOT EXISTS engagements (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              client_name TEXT,
-              engagement_ref TEXT,
-              auditor_name TEXT,
-              financial_year TEXT,
-                            materiality_benchmark TEXT,
-                            materiality_base REAL,
-                            materiality_percent REAL,
-              materiality REAL,
-                            performance_percent REAL,
-              performance_materiality REAL,
-                            clearly_trivial_percent REAL,
-                            clearly_trivial_threshold REAL,
-                                                        created_by TEXT,
-                            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-            );
+                CREATE TABLE IF NOT EXISTS engagements (
+                  id SERIAL PRIMARY KEY,
+                  client_name TEXT,
+                  engagement_ref TEXT,
+                  auditor_name TEXT,
+                  financial_year TEXT,
+                  materiality_benchmark TEXT,
+                  materiality_base REAL,
+                  materiality_percent REAL,
+                  materiality REAL,
+                  performance_percent REAL,
+                  performance_materiality REAL,
+                  clearly_trivial_percent REAL,
+                  clearly_trivial_threshold REAL,
+                  created_by TEXT,
+                  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
 
-            CREATE TABLE IF NOT EXISTS population (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              engagement_id INTEGER REFERENCES engagements(id) ON DELETE CASCADE,
-              account_code TEXT,
-              transaction_ref TEXT,
-              description TEXT,
-              transaction_date TEXT,
-              amount REAL,
-              is_high_value INTEGER DEFAULT 0
-            );
+                CREATE TABLE IF NOT EXISTS population (
+                  id SERIAL PRIMARY KEY,
+                  engagement_id INTEGER REFERENCES engagements(id) ON DELETE CASCADE,
+                  account_code TEXT,
+                  transaction_ref TEXT,
+                  description TEXT,
+                  transaction_date TEXT,
+                  amount REAL,
+                  is_high_value INTEGER DEFAULT 0
+                );
 
-                        CREATE UNIQUE INDEX IF NOT EXISTS idx_population_unique_ref
-                        ON population (engagement_id, transaction_ref)
-                        WHERE transaction_ref IS NOT NULL AND transaction_ref <> '';
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_population_unique_ref
+                ON population (engagement_id, transaction_ref)
+                WHERE transaction_ref IS NOT NULL AND transaction_ref <> '';
 
-                        CREATE INDEX IF NOT EXISTS idx_population_engagement_account
-                        ON population (engagement_id, account_code);
+                CREATE INDEX IF NOT EXISTS idx_population_engagement_account
+                ON population (engagement_id, account_code);
 
-            CREATE TABLE IF NOT EXISTS sample_runs (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              engagement_id INTEGER REFERENCES engagements(id) ON DELETE CASCADE,
-              run_timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
-              auditor_name TEXT,
-              sampling_method TEXT,
-              population_count INTEGER,
-              population_value REAL,
-              materiality REAL,
-              performance_materiality REAL,
-              clearly_trivial_threshold REAL,
-              confidence_level REAL,
-              expected_error_rate REAL,
-                            tolerable_error_rate REAL,
-              sample_size INTEGER,
-              random_seed INTEGER,
-              high_value_count INTEGER,
-                            is_voided INTEGER DEFAULT 0,
-                            voided_at TEXT,
-                            voided_by TEXT,
-              notes TEXT
-            );
+                CREATE TABLE IF NOT EXISTS sample_runs (
+                  id SERIAL PRIMARY KEY,
+                  engagement_id INTEGER REFERENCES engagements(id) ON DELETE CASCADE,
+                  run_timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+                  auditor_name TEXT,
+                  sampling_method TEXT,
+                  population_count INTEGER,
+                  population_value REAL,
+                  materiality REAL,
+                  performance_materiality REAL,
+                  clearly_trivial_threshold REAL,
+                  confidence_level REAL,
+                  expected_error_rate REAL,
+                  tolerable_error_rate REAL,
+                  sample_size INTEGER,
+                  random_seed INTEGER,
+                  high_value_count INTEGER,
+                  is_voided INTEGER DEFAULT 0,
+                  voided_at TEXT,
+                  voided_by TEXT,
+                  notes TEXT
+                );
 
-            CREATE TABLE IF NOT EXISTS sample_output (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              run_id INTEGER REFERENCES sample_runs(id) ON DELETE CASCADE,
-              population_id INTEGER REFERENCES population(id),
-              is_high_value INTEGER DEFAULT 0,
-                            stratum TEXT,
-                            selected_reason TEXT DEFAULT 'sample'
-                        );
+                CREATE TABLE IF NOT EXISTS sample_output (
+                  id SERIAL PRIMARY KEY,
+                  run_id INTEGER REFERENCES sample_runs(id) ON DELETE CASCADE,
+                  population_id INTEGER REFERENCES population(id),
+                  is_high_value INTEGER DEFAULT 0,
+                  stratum TEXT,
+                  selected_reason TEXT DEFAULT 'sample'
+                );
 
-                        CREATE TABLE IF NOT EXISTS audit_log (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            event_timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
-                            user_name TEXT,
-                            engagement_id INTEGER REFERENCES engagements(id) ON DELETE CASCADE,
-                            run_id INTEGER REFERENCES sample_runs(id) ON DELETE SET NULL,
-                            event_type TEXT,
-                            sampling_method TEXT,
-                            materiality REAL,
-                            performance_materiality REAL,
-                            clearly_trivial_threshold REAL,
-                            random_seed INTEGER,
-                            sample_size INTEGER,
-                            is_voided INTEGER DEFAULT 0,
-                            details TEXT
-            );
-            """
-        )
-        columns = {row[1] for row in conn.execute("PRAGMA table_info(admin_users)").fetchall()}
-        if "first_name" not in columns:
-            conn.execute("ALTER TABLE admin_users ADD COLUMN first_name TEXT")
-        if "surname" not in columns:
-            conn.execute("ALTER TABLE admin_users ADD COLUMN surname TEXT")
-        if "profile_picture" not in columns:
-            conn.execute("ALTER TABLE admin_users ADD COLUMN profile_picture TEXT")
-        if "is_admin" not in columns:
-            conn.execute("ALTER TABLE admin_users ADD COLUMN is_admin INTEGER DEFAULT 0")
-        if "is_active" not in columns:
-            conn.execute("ALTER TABLE admin_users ADD COLUMN is_active INTEGER DEFAULT 1")
-        if "created_by" not in columns:
-            conn.execute("ALTER TABLE admin_users ADD COLUMN created_by INTEGER")
-        if "must_reset_password" not in columns:
-            conn.execute("ALTER TABLE admin_users ADD COLUMN must_reset_password INTEGER DEFAULT 0")
-        if "failed_login_attempts" not in columns:
-            conn.execute("ALTER TABLE admin_users ADD COLUMN failed_login_attempts INTEGER DEFAULT 0")
-        if "locked_until" not in columns:
-            conn.execute("ALTER TABLE admin_users ADD COLUMN locked_until TEXT")
-        if "last_failed_login" not in columns:
-            conn.execute("ALTER TABLE admin_users ADD COLUMN last_failed_login TEXT")
+                CREATE TABLE IF NOT EXISTS audit_log (
+                  id SERIAL PRIMARY KEY,
+                  event_timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+                  user_name TEXT,
+                  engagement_id INTEGER REFERENCES engagements(id) ON DELETE CASCADE,
+                  run_id INTEGER REFERENCES sample_runs(id) ON DELETE SET NULL,
+                  event_type TEXT,
+                  sampling_method TEXT,
+                  materiality REAL,
+                  performance_materiality REAL,
+                  clearly_trivial_threshold REAL,
+                  random_seed INTEGER,
+                  sample_size INTEGER,
+                  is_voided INTEGER DEFAULT 0,
+                  details TEXT
+                );
 
-        engagement_columns = {row[1] for row in conn.execute("PRAGMA table_info(engagements)").fetchall()}
-        if "materiality_benchmark" not in engagement_columns:
-            conn.execute("ALTER TABLE engagements ADD COLUMN materiality_benchmark TEXT")
-        if "materiality_base" not in engagement_columns:
-            conn.execute("ALTER TABLE engagements ADD COLUMN materiality_base REAL")
-        if "materiality_percent" not in engagement_columns:
-            conn.execute("ALTER TABLE engagements ADD COLUMN materiality_percent REAL")
-        if "performance_percent" not in engagement_columns:
-            conn.execute("ALTER TABLE engagements ADD COLUMN performance_percent REAL DEFAULT 75")
-        if "clearly_trivial_percent" not in engagement_columns:
-            conn.execute("ALTER TABLE engagements ADD COLUMN clearly_trivial_percent REAL DEFAULT 3")
-        if "clearly_trivial_threshold" not in engagement_columns:
-            conn.execute("ALTER TABLE engagements ADD COLUMN clearly_trivial_threshold REAL")
-        if "created_by" not in engagement_columns:
-            conn.execute("ALTER TABLE engagements ADD COLUMN created_by TEXT")
+                ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS first_name TEXT;
+                ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS surname TEXT;
+                ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS profile_picture TEXT;
+                ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS is_admin INTEGER DEFAULT 0;
+                ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS is_active INTEGER DEFAULT 1;
+                ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS created_by INTEGER;
+                ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS must_reset_password INTEGER DEFAULT 0;
+                ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS failed_login_attempts INTEGER DEFAULT 0;
+                ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS locked_until TEXT;
+                ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS last_failed_login TEXT;
 
-        sample_run_columns = {row[1] for row in conn.execute("PRAGMA table_info(sample_runs)").fetchall()}
-        if "performance_materiality" not in sample_run_columns:
-            conn.execute("ALTER TABLE sample_runs ADD COLUMN performance_materiality REAL")
-        if "clearly_trivial_threshold" not in sample_run_columns:
-            conn.execute("ALTER TABLE sample_runs ADD COLUMN clearly_trivial_threshold REAL")
-        if "tolerable_error_rate" not in sample_run_columns:
-            conn.execute("ALTER TABLE sample_runs ADD COLUMN tolerable_error_rate REAL")
-        if "is_voided" not in sample_run_columns:
-            conn.execute("ALTER TABLE sample_runs ADD COLUMN is_voided INTEGER DEFAULT 0")
-        if "voided_at" not in sample_run_columns:
-            conn.execute("ALTER TABLE sample_runs ADD COLUMN voided_at TEXT")
-        if "voided_by" not in sample_run_columns:
-            conn.execute("ALTER TABLE sample_runs ADD COLUMN voided_by TEXT")
+                ALTER TABLE engagements ADD COLUMN IF NOT EXISTS materiality_benchmark TEXT;
+                ALTER TABLE engagements ADD COLUMN IF NOT EXISTS materiality_base REAL;
+                ALTER TABLE engagements ADD COLUMN IF NOT EXISTS materiality_percent REAL;
+                ALTER TABLE engagements ADD COLUMN IF NOT EXISTS performance_percent REAL DEFAULT 75;
+                ALTER TABLE engagements ADD COLUMN IF NOT EXISTS clearly_trivial_percent REAL DEFAULT 3;
+                ALTER TABLE engagements ADD COLUMN IF NOT EXISTS clearly_trivial_threshold REAL;
+                ALTER TABLE engagements ADD COLUMN IF NOT EXISTS created_by TEXT;
 
-        sample_output_columns = {row[1] for row in conn.execute("PRAGMA table_info(sample_output)").fetchall()}
-        if "stratum" not in sample_output_columns:
-            conn.execute("ALTER TABLE sample_output ADD COLUMN stratum TEXT")
-        if "selected_reason" not in sample_output_columns:
-            conn.execute("ALTER TABLE sample_output ADD COLUMN selected_reason TEXT DEFAULT 'sample'")
+                ALTER TABLE sample_runs ADD COLUMN IF NOT EXISTS performance_materiality REAL;
+                ALTER TABLE sample_runs ADD COLUMN IF NOT EXISTS clearly_trivial_threshold REAL;
+                ALTER TABLE sample_runs ADD COLUMN IF NOT EXISTS tolerable_error_rate REAL;
+                ALTER TABLE sample_runs ADD COLUMN IF NOT EXISTS is_voided INTEGER DEFAULT 0;
+                ALTER TABLE sample_runs ADD COLUMN IF NOT EXISTS voided_at TEXT;
+                ALTER TABLE sample_runs ADD COLUMN IF NOT EXISTS voided_by TEXT;
 
-        audit_columns = {row[1] for row in conn.execute("PRAGMA table_info(audit_log)").fetchall()}
-        if "performance_materiality" not in audit_columns:
-            conn.execute("ALTER TABLE audit_log ADD COLUMN performance_materiality REAL")
-        if "clearly_trivial_threshold" not in audit_columns:
-            conn.execute("ALTER TABLE audit_log ADD COLUMN clearly_trivial_threshold REAL")
-        if "run_id" not in audit_columns:
-            conn.execute("ALTER TABLE audit_log ADD COLUMN run_id INTEGER")
-        if "is_voided" not in audit_columns:
-            conn.execute("ALTER TABLE audit_log ADD COLUMN is_voided INTEGER DEFAULT 0")
+                ALTER TABLE sample_output ADD COLUMN IF NOT EXISTS stratum TEXT;
+                ALTER TABLE sample_output ADD COLUMN IF NOT EXISTS selected_reason TEXT DEFAULT 'sample';
+
+                ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS performance_materiality REAL;
+                ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS clearly_trivial_threshold REAL;
+                ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS run_id INTEGER;
+                ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS is_voided INTEGER DEFAULT 0;
+                """
+            )
+        else:
+            conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS admin_users (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  username TEXT UNIQUE NOT NULL,
+                  first_name TEXT,
+                  surname TEXT,
+                  profile_picture TEXT,
+                  email TEXT UNIQUE NOT NULL,
+                  password_hash TEXT NOT NULL,
+                  is_admin INTEGER DEFAULT 0,
+                  is_active INTEGER DEFAULT 1,
+                  failed_login_attempts INTEGER DEFAULT 0,
+                  locked_until TEXT,
+                  last_failed_login TEXT,
+                  must_reset_password INTEGER DEFAULT 0,
+                  created_by INTEGER REFERENCES admin_users(id),
+                  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS admin_sessions (
+                  token TEXT PRIMARY KEY,
+                  admin_id INTEGER NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+                  created_at TEXT NOT NULL,
+                  expires_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS engagements (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  client_name TEXT,
+                  engagement_ref TEXT,
+                  auditor_name TEXT,
+                  financial_year TEXT,
+                  materiality_benchmark TEXT,
+                  materiality_base REAL,
+                  materiality_percent REAL,
+                  materiality REAL,
+                  performance_percent REAL,
+                  performance_materiality REAL,
+                  clearly_trivial_percent REAL,
+                  clearly_trivial_threshold REAL,
+                  created_by TEXT,
+                  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS population (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  engagement_id INTEGER REFERENCES engagements(id) ON DELETE CASCADE,
+                  account_code TEXT,
+                  transaction_ref TEXT,
+                  description TEXT,
+                  transaction_date TEXT,
+                  amount REAL,
+                  is_high_value INTEGER DEFAULT 0
+                );
+
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_population_unique_ref
+                ON population (engagement_id, transaction_ref)
+                WHERE transaction_ref IS NOT NULL AND transaction_ref <> '';
+
+                CREATE INDEX IF NOT EXISTS idx_population_engagement_account
+                ON population (engagement_id, account_code);
+
+                CREATE TABLE IF NOT EXISTS sample_runs (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  engagement_id INTEGER REFERENCES engagements(id) ON DELETE CASCADE,
+                  run_timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+                  auditor_name TEXT,
+                  sampling_method TEXT,
+                  population_count INTEGER,
+                  population_value REAL,
+                  materiality REAL,
+                  performance_materiality REAL,
+                  clearly_trivial_threshold REAL,
+                  confidence_level REAL,
+                  expected_error_rate REAL,
+                  tolerable_error_rate REAL,
+                  sample_size INTEGER,
+                  random_seed INTEGER,
+                  high_value_count INTEGER,
+                  is_voided INTEGER DEFAULT 0,
+                  voided_at TEXT,
+                  voided_by TEXT,
+                  notes TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS sample_output (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  run_id INTEGER REFERENCES sample_runs(id) ON DELETE CASCADE,
+                  population_id INTEGER REFERENCES population(id),
+                  is_high_value INTEGER DEFAULT 0,
+                  stratum TEXT,
+                  selected_reason TEXT DEFAULT 'sample'
+                );
+
+                CREATE TABLE IF NOT EXISTS audit_log (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  event_timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+                  user_name TEXT,
+                  engagement_id INTEGER REFERENCES engagements(id) ON DELETE CASCADE,
+                  run_id INTEGER REFERENCES sample_runs(id) ON DELETE SET NULL,
+                  event_type TEXT,
+                  sampling_method TEXT,
+                  materiality REAL,
+                  performance_materiality REAL,
+                  clearly_trivial_threshold REAL,
+                  random_seed INTEGER,
+                  sample_size INTEGER,
+                  is_voided INTEGER DEFAULT 0,
+                  details TEXT
+                );
+                """
+            )
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(admin_users)").fetchall()}
+            if "first_name" not in columns:
+                conn.execute("ALTER TABLE admin_users ADD COLUMN first_name TEXT")
+            if "surname" not in columns:
+                conn.execute("ALTER TABLE admin_users ADD COLUMN surname TEXT")
+            if "profile_picture" not in columns:
+                conn.execute("ALTER TABLE admin_users ADD COLUMN profile_picture TEXT")
+            if "is_admin" not in columns:
+                conn.execute("ALTER TABLE admin_users ADD COLUMN is_admin INTEGER DEFAULT 0")
+            if "is_active" not in columns:
+                conn.execute("ALTER TABLE admin_users ADD COLUMN is_active INTEGER DEFAULT 1")
+            if "created_by" not in columns:
+                conn.execute("ALTER TABLE admin_users ADD COLUMN created_by INTEGER")
+            if "must_reset_password" not in columns:
+                conn.execute("ALTER TABLE admin_users ADD COLUMN must_reset_password INTEGER DEFAULT 0")
+            if "failed_login_attempts" not in columns:
+                conn.execute("ALTER TABLE admin_users ADD COLUMN failed_login_attempts INTEGER DEFAULT 0")
+            if "locked_until" not in columns:
+                conn.execute("ALTER TABLE admin_users ADD COLUMN locked_until TEXT")
+            if "last_failed_login" not in columns:
+                conn.execute("ALTER TABLE admin_users ADD COLUMN last_failed_login TEXT")
+
+            engagement_columns = {row[1] for row in conn.execute("PRAGMA table_info(engagements)").fetchall()}
+            if "materiality_benchmark" not in engagement_columns:
+                conn.execute("ALTER TABLE engagements ADD COLUMN materiality_benchmark TEXT")
+            if "materiality_base" not in engagement_columns:
+                conn.execute("ALTER TABLE engagements ADD COLUMN materiality_base REAL")
+            if "materiality_percent" not in engagement_columns:
+                conn.execute("ALTER TABLE engagements ADD COLUMN materiality_percent REAL")
+            if "performance_percent" not in engagement_columns:
+                conn.execute("ALTER TABLE engagements ADD COLUMN performance_percent REAL DEFAULT 75")
+            if "clearly_trivial_percent" not in engagement_columns:
+                conn.execute("ALTER TABLE engagements ADD COLUMN clearly_trivial_percent REAL DEFAULT 3")
+            if "clearly_trivial_threshold" not in engagement_columns:
+                conn.execute("ALTER TABLE engagements ADD COLUMN clearly_trivial_threshold REAL")
+            if "created_by" not in engagement_columns:
+                conn.execute("ALTER TABLE engagements ADD COLUMN created_by TEXT")
+
+            sample_run_columns = {row[1] for row in conn.execute("PRAGMA table_info(sample_runs)").fetchall()}
+            if "performance_materiality" not in sample_run_columns:
+                conn.execute("ALTER TABLE sample_runs ADD COLUMN performance_materiality REAL")
+            if "clearly_trivial_threshold" not in sample_run_columns:
+                conn.execute("ALTER TABLE sample_runs ADD COLUMN clearly_trivial_threshold REAL")
+            if "tolerable_error_rate" not in sample_run_columns:
+                conn.execute("ALTER TABLE sample_runs ADD COLUMN tolerable_error_rate REAL")
+            if "is_voided" not in sample_run_columns:
+                conn.execute("ALTER TABLE sample_runs ADD COLUMN is_voided INTEGER DEFAULT 0")
+            if "voided_at" not in sample_run_columns:
+                conn.execute("ALTER TABLE sample_runs ADD COLUMN voided_at TEXT")
+            if "voided_by" not in sample_run_columns:
+                conn.execute("ALTER TABLE sample_runs ADD COLUMN voided_by TEXT")
+
+            sample_output_columns = {row[1] for row in conn.execute("PRAGMA table_info(sample_output)").fetchall()}
+            if "stratum" not in sample_output_columns:
+                conn.execute("ALTER TABLE sample_output ADD COLUMN stratum TEXT")
+            if "selected_reason" not in sample_output_columns:
+                conn.execute("ALTER TABLE sample_output ADD COLUMN selected_reason TEXT DEFAULT 'sample'")
+
+            audit_columns = {row[1] for row in conn.execute("PRAGMA table_info(audit_log)").fetchall()}
+            if "performance_materiality" not in audit_columns:
+                conn.execute("ALTER TABLE audit_log ADD COLUMN performance_materiality REAL")
+            if "clearly_trivial_threshold" not in audit_columns:
+                conn.execute("ALTER TABLE audit_log ADD COLUMN clearly_trivial_threshold REAL")
+            if "run_id" not in audit_columns:
+                conn.execute("ALTER TABLE audit_log ADD COLUMN run_id INTEGER")
+            if "is_voided" not in audit_columns:
+                conn.execute("ALTER TABLE audit_log ADD COLUMN is_voided INTEGER DEFAULT 0")
         admin_count = conn.execute("SELECT COUNT(*) FROM admin_users").fetchone()[0]
         if admin_count == 0:
             seed_first_name = normalize_name(ADMIN_USERNAME or "Admin") or "Admin"
@@ -498,12 +763,12 @@ def create_admin_user(data):
         email_exists = conn.execute("SELECT id FROM admin_users WHERE lower(email) = lower(?)", (email,)).fetchone()
         if email_exists:
             return {"created": False, "errors": {"email": "Email already exists"}}
-        conn.execute(
+        admin_id = _insert_and_get_id(
+            conn,
             "INSERT INTO admin_users (username, first_name, surname, profile_picture, email, password_hash, is_admin, is_active, must_reset_password, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
             (username, first_name, surname, profile_picture, email, hash_password(password), is_admin, must_reset_password, created_by),
         )
         conn.commit()
-        admin_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
         creator = conn.execute("SELECT username FROM admin_users WHERE id = ?", (created_by,)).fetchone() if created_by else None
         actor = creator[0] if creator else username
         _insert_audit_event(
@@ -529,6 +794,9 @@ def create_admin_user(data):
 def create_user(data, created_by):
     payload = {
         "username": data.get("username"),
+        "first_name": data.get("first_name"),
+        "surname": data.get("surname"),
+        "profile_picture": data.get("profile_picture"),
         "email": data.get("email"),
         "password": data.get("password"),
         "is_admin": bool(data.get("is_admin", False)),
@@ -864,7 +1132,7 @@ def create_engagement(data, acted_by=None):
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     with get_connection() as conn:
-        cur = conn.execute(query, [
+        engagement_id = _insert_and_get_id(conn, query, [
             data.get("client_name"),
             data.get("engagement_ref"),
             data.get("auditor_name"),
@@ -880,7 +1148,6 @@ def create_engagement(data, acted_by=None):
             data.get("created_by"),
         ])
         conn.commit()
-        engagement_id = cur.lastrowid
         conn.execute(
             """
             INSERT INTO audit_log (user_name, engagement_id, event_type, details)
@@ -1197,7 +1464,7 @@ def create_sample_run(run):
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     with get_connection() as conn:
-        cur = conn.execute(query, [
+        run_id = _insert_and_get_id(conn, query, [
             run["engagement_id"],
             run["auditor_name"],
             run["sampling_method"],
@@ -1215,7 +1482,6 @@ def create_sample_run(run):
             run.get("notes"),
         ])
         conn.commit()
-        run_id = cur.lastrowid
         conn.execute(
             """
             INSERT INTO audit_log (
@@ -1381,10 +1647,16 @@ def get_audit_log(engagement_id=None, user_name=None, method=None, from_date=Non
         clauses.append("lower(al.sampling_method) = lower(?)")
         params.append(method)
     if from_date:
-        clauses.append("datetime(al.event_timestamp) >= datetime(?)")
+        if DB_BACKEND == "postgres":
+            clauses.append("al.event_timestamp::timestamp >= ?::timestamp")
+        else:
+            clauses.append("datetime(al.event_timestamp) >= datetime(?)")
         params.append(from_date)
     if to_date:
-        clauses.append("datetime(al.event_timestamp) <= datetime(?)")
+        if DB_BACKEND == "postgres":
+            clauses.append("al.event_timestamp::timestamp <= ?::timestamp")
+        else:
+            clauses.append("datetime(al.event_timestamp) <= datetime(?)")
         params.append(to_date)
     if is_voided is not None:
         clauses.append("COALESCE(al.is_voided, 0) = ?")
