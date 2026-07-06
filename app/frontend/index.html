@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VCCA Audit Sampling Toolkit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css?v=20260706l" />
+</head>
+<body class="login-view">
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand-block">
+        <img class="brand-logo" src="vcca-logo.png" alt="VCCA logo" onerror="this.style.display='none'" />
+        <h1 class="app-title">VCCA Audit Sampling Toolkit</h1>
+      </div>
+      <div class="header-user-area">
+        <div class="user-menu hidden" id="userMenu">
+          <button class="user-menu-trigger" id="userMenuTrigger" type="button" aria-haspopup="true" aria-expanded="false">
+            <span class="user-avatar user-avatar-trigger" id="userMenuAvatar">TA</span>
+            <span class="user-menu-text">
+              <span class="user-menu-name" id="sessionUsername">Session not started</span>
+              <span class="user-menu-role" id="sessionRole">Guest</span>
+            </span>
+            <svg class="user-menu-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="user-menu-dropdown hidden" id="userMenuDropdown">
+            <div class="user-menu-profile">
+              <span class="user-avatar user-avatar-profile" id="userMenuProfileAvatar">TA</span>
+              <div class="user-menu-profile-text">
+                <div class="user-menu-profile-name" id="userMenuProfileName">-</div>
+                <div class="user-menu-profile-email" id="userMenuProfileEmail">-</div>
+                <span class="user-menu-profile-role" id="userMenuProfileRole">User</span>
+              </div>
+            </div>
+            <div class="user-menu-items">
+              <button class="user-menu-item" type="button" id="menuMyAccountButton">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                <span>My Account</span>
+              </button>
+              <button class="user-menu-item" type="button" id="menuChangePasswordButton">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 10V8a6 6 0 0 1 12 0v2m-9 0h6a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span>Change Password</span>
+              </button>
+              <div class="user-menu-divider"></div>
+              <button class="user-menu-item sign-out-item" type="button" id="menuSignOutButton">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17H7a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3m4 8 4-4-4-4m4 4H9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span>Sign Out</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" id="authPanel">
+    <section class="login-shell" aria-label="Login layout">
+      <div class="login-brand-panel">
+        <div class="login-brand-content">
+          <img class="login-brand-logo" src="vcca-logo.png" alt="VCCA logo" onerror="this.style.display='none'" />
+          <h2>VCCA Audit Sampling Toolkit</h2>
+          <p class="login-brand-subtitle">Professional audit sampling powered by ISA 530</p>
+          <ul class="login-feature-list" aria-label="Key features">
+            <li><span class="dot">●</span>Materiality-driven sample selection</li>
+            <li><span class="dot">●</span>ISA 530 compliant audit documentation</li>
+            <li><span class="dot">●</span>Full audit log and quality control trail</li>
+          </ul>
+        </div>
+        <p class="login-brand-footer">© 2026 Victoria Chartered Certified Accountants</p>
+      </div>
+
+      <div class="login-form-panel">
+        <div class="login-form-wrap">
+          <div class="login-copy">
+            <h2>Welcome back</h2>
+            <p>Sign in to your account to continue.</p>
+          </div>
+          <section class="login-card" aria-label="Sign in form">
+            <form id="adminLoginForm" class="login-form">
+              <label>Username<input type="text" id="loginUsername" value="Taku" required /></label>
+              <label>Password<input type="password" id="loginPassword" value="Taku2002!" required /></label>
+              <p class="forgot-password"><a href="#" onclick="return false;">Forgot password?</a></p>
+              <p id="loginErrorBanner" class="login-error hidden">Invalid username or password.</p>
+              <button type="submit" class="button primary login-submit">Sign In</button>
+            </form>
+            <p class="login-disclaimer">Access is restricted to authorised personnel only. Contact your administrator to request an account.</p>
+          </section>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <main class="container hidden" id="appShell">
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-tab="dashboard">Dashboard</button>
+      <button class="tab" data-tab="input">Input</button>
+      <button class="tab" data-tab="calculator">Calculator</button>
+      <button class="tab" data-tab="run">Run Sample</button>
+      <button class="tab" data-tab="output">Output</button>
+      <button class="tab" data-tab="audit-log">Audit Log</button>
+      <button class="tab hidden" id="usersTabButton" data-tab="users">Users</button>
+    </nav>
+
+    <section class="tab-content active" id="dashboard">
+      <div class="card">
+        <h2>Engagement</h2>
+        <form id="engagementForm" class="form-grid">
+          <label>Client Name<input type="text" id="clientName" required /></label>
+          <label>Engagement Ref<input type="text" id="engagementRef" required /></label>
+          <label>Auditor Name<input type="text" id="auditorName" required /></label>
+          <label>Financial Year<input type="text" id="financialYear" required /></label>
+          <label>Benchmark
+            <select id="materialityBenchmark">
+              <option value="Revenue">Revenue</option>
+              <option value="Income before tax">Income before tax</option>
+              <option value="Total Assets" selected>Total Assets</option>
+              <option value="Gross revenue or expenditure">Gross revenue or expenditure</option>
+            </select>
+          </label>
+          <label>Benchmark Figure<input type="number" id="materialityBase" step="0.01" required /></label>
+          <label>Chosen Benchmark %<input type="number" id="materialityPercent" step="0.01" required /></label>
+          <p id="benchmarkRangeHint" class="form-hint">Suggested range will update by benchmark.</p>
+          <label>Overall Materiality<input type="number" id="materiality" step="0.01" required /></label>
+          <label>Performance %<input type="number" id="performancePercent" step="0.01" value="75" required /></label>
+          <label>Performance Materiality<input type="number" id="performanceMateriality" step="0.01" required /></label>
+          <label>Clearly Trivial %<input type="number" id="clearlyTrivialPercent" step="0.01" value="3" required /></label>
+          <label>Clearly Trivial Threshold<input type="number" id="clearlyTrivialThreshold" step="0.01" required /></label>
+          <button type="submit" class="button primary">Create Engagement</button>
+        </form>
+        <div class="select-group">
+          <label>Select Engagement</label>
+          <select id="engagementSelect"></select>
+        </div>
+      </div>
+
+      <div class="card summary-grid">
+        <div class="summary-card">
+          <h3>Total Items</h3>
+          <p id="totalItems">0</p>
+        </div>
+        <div class="summary-card">
+          <h3>Total Value</h3>
+          <p id="totalValue">0</p>
+        </div>
+        <div class="summary-card">
+          <h3>Items Above Performance Materiality</h3>
+          <p id="aboveMateriality">0</p>
+        </div>
+        <div class="summary-card">
+          <h3>Sampling Population (CT to PM)</h3>
+          <p id="remainingPopulation">0</p>
+        </div>
+        <div class="summary-card">
+          <h3>Items Below Clearly Trivial</h3>
+          <p id="belowClearlyTrivial">0</p>
+        </div>
+      </div>
+
+      <div class="card indicator-card">
+        <h3>Sample Sufficiency Indicator</h3>
+        <div class="sufficiency-track" id="sampleIndicatorTrack" aria-hidden="true">
+          <span class="zone zone-red">Insufficient</span>
+          <span class="zone zone-amber">Marginal</span>
+          <span class="zone zone-green">Sufficient</span>
+        </div>
+        <p id="sampleIndicator" class="indicator-value">No engagement selected</p>
+      </div>
+    </section>
+
+    <section class="tab-content" id="input">
+      <div class="card">
+        <h3>High-Value Overview</h3>
+        <p><strong>Threshold:</strong> <span id="highValueThreshold">0.00</span></p>
+        <p><strong>Automatic high-value items:</strong> <span id="highValuePopulationCount">0</span></p>
+      </div>
+      <div class="card">
+        <h2>Population Input</h2>
+        <textarea id="csvInput" placeholder="Paste CSV data here"></textarea>
+        <div class="button-row">
+          <button id="uploadPopulationFile" class="button secondary" type="button">Upload CSV/Excel</button>
+          <button id="parseCsv" class="button secondary">Parse CSV</button>
+          <button id="loadPopulation" class="button primary">Load Population</button>
+        </div>
+        <input id="populationFileInput" type="file" class="hidden" accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+        <p id="populationFileMeta" class="form-hint">No file selected.</p>
+      </div>
+      <div class="card">
+        <h3>Population Management</h3>
+        <div class="form-grid compact-grid population-controls">
+          <label>Filter by Account
+            <select id="accountFilter">
+              <option value="">All accounts</option>
+            </select>
+          </label>
+          <label>Include High Value
+            <select id="includeHighValueFilter">
+              <option value="true" selected>Yes</option>
+              <option value="false">No</option>
+            </select>
+          </label>
+          <div class="population-actions">
+            <button id="refreshPopulation" class="button secondary" type="button">Refresh Population</button>
+            <button id="clearPopulation" class="button danger hidden" type="button">Clear Population</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table id="populationTable">
+            <thead>
+              <tr><th>ID</th><th>Transaction Ref</th><th>Account</th><th>Description</th><th>Date</th><th>Amount</th><th>High Value</th><th>Actions</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Account Statistics</h3>
+        <div class="table-wrapper">
+          <table id="accountStatsTable">
+            <thead>
+              <tr><th>Account</th><th>Items</th><th>Total Value</th><th>High Value Count</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h3>CSV Preview</h3>
+        <div class="table-wrapper">
+          <table id="csvPreview">
+            <thead>
+              <tr><th>Transaction Ref</th><th>Account Code</th><th>Description</th><th>Date</th><th>Amount</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="tab-content" id="calculator">
+      <div class="card">
+        <h2>Sample Size Calculator</h2>
+        <form id="calculatorForm" class="form-grid">
+          <label>Population Size<input type="number" id="populationSize" readonly /></label>
+          <label>Confidence Level<select id="confidenceLevel"><option value="90">90%</option><option value="95" selected>95%</option><option value="99">99%</option></select></label>
+          <label>Performance Materiality<input type="number" id="calculatorMateriality" step="0.01" readonly /></label>
+          <label>Expected Error Rate (%)<input type="number" id="expectedErrorRate" value="1.0" step="0.01" /></label>
+          <label>Tolerable Misstatement % (derived)<input type="number" id="tolerableErrorRate" value="0" step="0.01" readonly /></label>
+          <label>Recommended Sample Size<input type="number" id="recommendedSampleSize" readonly /></label>
+          <label>Sampling Interval<input type="text" id="samplingInterval" readonly /></label>
+        </form>
+      </div>
+    </section>
+
+    <section class="tab-content" id="run">
+      <div class="card run-config-card">
+        <h2>Run Sample</h2>
+        <form id="runForm" class="form-grid">
+          <label>Sampling Method<select id="samplingMethod"><option value="random">Random</option><option value="systematic">Systematic</option><option value="mus">MUS</option><option value="stratified">Stratified</option><option value="judgemental">Judgemental</option></select></label>
+          <label>Random Seed<input type="number" id="randomSeed" /></label>
+          <label id="manualIdsGroup" class="hidden">Manual IDs (comma-separated)<input type="text" id="manualIds" disabled /></label>
+          <label>Sample Size<input type="number" id="runSampleSize" /></label>
+          <label class="run-notes-field">Notes<textarea id="runNotes"></textarea></label>
+          <div class="run-submit-wrap">
+            <button type="submit" class="button primary">Run Sample</button>
+          </div>
+        </form>
+      </div>
+      <div class="card run-summary-card">
+        <h3>Results Summary</h3>
+        <div class="run-summary-grid">
+          <article class="run-summary-item">
+            <span class="label">Sample Size</span>
+            <span class="value" id="resultSampleSize">0</span>
+          </article>
+          <article class="run-summary-item">
+            <span class="label">High-Value Count</span>
+            <span class="value" id="resultHighValueCount">0</span>
+          </article>
+          <article class="run-summary-item">
+            <span class="label">Method</span>
+            <span class="value" id="resultMethod">-</span>
+          </article>
+          <article class="run-summary-item">
+            <span class="label">Timestamp</span>
+            <span class="value" id="resultTimestamp">-</span>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="tab-content" id="output">
+      <div class="card output-shell-card">
+        <div class="output-header-row">
+          <div>
+            <h2>Output</h2>
+            <p class="section-subtitle">Review sampled rows, high-value inclusions, and export-ready evidence.</p>
+          </div>
+          <div class="output-metrics">
+            <span class="metric-pill">Rows: <strong id="outputTotalRows">0</strong></span>
+            <span class="metric-pill">High Value: <strong id="outputHighValueRows">0</strong></span>
+            <span class="metric-pill">Total Amount: <strong id="outputTotalAmount">0.00</strong></span>
+          </div>
+        </div>
+        <div class="output-toolbar">
+          <div class="form-grid compact-grid hidden" id="sampleAdminTools">
+            <label>Run
+              <select id="adminRunSelect"></select>
+            </label>
+            <button id="voidSampleRun" class="button danger" type="button">Void Run</button>
+          </div>
+          <div class="button-row">
+            <button id="exportSampleCsv" class="button secondary">Export CSV</button>
+            <button id="exportSampleExcel" class="button secondary">Export Excel</button>
+            <button id="exportSamplePdf" class="button secondary">Export PDF</button>
+            <button id="printSample" class="button secondary">Print</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table id="sampleOutputTable">
+            <thead><tr><th>Transaction Ref</th><th>Account Code</th><th>Description</th><th>Date</th><th>Amount</th><th>High Value</th><th>Selection Reason</th><th>Stratum</th><th class="admin-only-header hidden" id="sampleActionsHeader">Actions</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="tab-content" id="audit-log">
+      <div class="card audit-shell-card">
+        <div class="audit-header-row">
+          <div>
+            <h2>Audit Log</h2>
+            <p class="section-subtitle">Track all run activity with method, thresholds, and notes.</p>
+          </div>
+          <div class="audit-metrics">
+            <span class="metric-pill">Rows: <strong id="auditRowsCount">0</strong></span>
+            <span class="metric-pill">Latest: <strong id="auditLatestTimestamp">-</strong></span>
+          </div>
+        </div>
+        <div class="button-row">
+          <button id="exportAuditCsv" class="button secondary" type="button">Export CSV</button>
+          <button id="exportAuditExcel" class="button secondary" type="button">Export Excel</button>
+          <button id="exportAuditPdf" class="button secondary" type="button">Export PDF</button>
+        </div>
+        <div class="form-grid compact-grid">
+          <label>User
+            <input type="text" id="auditFilterUser" placeholder="All users" />
+          </label>
+          <label>Engagement
+            <input type="text" id="auditFilterEngagement" placeholder="Engagement ID" />
+          </label>
+          <label>Method
+            <input type="text" id="auditFilterMethod" placeholder="All methods" />
+          </label>
+          <label>From
+            <input type="date" id="auditFilterFrom" />
+          </label>
+          <label>To
+            <input type="date" id="auditFilterTo" />
+          </label>
+          <label>Voided Status
+            <select id="auditFilterVoided">
+              <option value="">All</option>
+              <option value="false">Active only</option>
+              <option value="true">Voided only</option>
+            </select>
+          </label>
+          <button id="applyAuditFilters" class="button secondary" type="button">Apply Filters</button>
+          <button id="deleteVoidedLogs" class="button danger hidden" type="button">Delete Voided</button>
+        </div>
+        <div class="table-wrapper">
+          <table id="auditLogTable">
+            <thead><tr><th>Run #</th><th>Timestamp</th><th>User</th><th>Engagement</th><th>Method</th><th>Materiality</th><th>Sample Size</th><th>High Value</th><th>Seed</th><th>Notes</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="account-page hidden" id="accountPage" aria-label="My Account">
+      <div class="account-page-inner">
+        <div class="card account-overview-card">
+          <div class="account-cover"></div>
+          <div class="account-overview-body">
+            <span class="account-avatar account-avatar-large" id="accountPageAvatar">TA</span>
+            <div class="account-page-name" id="accountPageName">-</div>
+            <span class="account-page-role-pill" id="accountPageRole">User</span>
+            <div class="account-page-divider"></div>
+            <div class="account-info-grid">
+              <div class="account-info-item">
+                <div class="account-info-label">USERNAME</div>
+                <div class="account-info-value" id="accountPageUsername">-</div>
+              </div>
+              <div class="account-info-item">
+                <div class="account-info-label">EMAIL</div>
+                <div class="account-info-value" id="accountPageEmail">-</div>
+              </div>
+              <div class="account-info-item">
+                <div class="account-info-label">MEMBER SINCE</div>
+                <div class="account-info-value" id="accountPageMemberSince">-</div>
+              </div>
+              <div class="account-info-item">
+                <div class="account-info-label">STATUS</div>
+                <div class="account-info-value" id="accountPageStatus">-</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card account-profile-card">
+          <h3>Profile Details</h3>
+          <form id="accountProfileForm" class="form-grid compact-grid account-profile-form">
+            <div class="account-profile-avatar-row">
+              <span class="account-avatar account-avatar-small" id="accountProfileAvatar">TA</span>
+              <label>Profile Picture
+                <input type="file" id="accountProfilePicture" accept="image/*" />
+                <small class="field-error" id="accountProfilePictureError"></small>
+              </label>
+            </div>
+            <label>First Name<input type="text" id="accountFirstName" required /><small class="field-error" id="accountFirstNameError"></small></label>
+            <label>Surname<input type="text" id="accountSurname" required /><small class="field-error" id="accountSurnameError"></small></label>
+            <label>Username<input type="text" id="accountUsername" readonly /></label>
+            <label>Email<input type="email" id="accountEmail" readonly /></label>
+            <button type="submit" class="button primary">Save Profile</button>
+          </form>
+        </div>
+
+        <div class="card account-password-card">
+          <div class="account-password-card-header">
+            <div class="account-password-card-title">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 10V8a6 6 0 0 1 12 0v2m-9 0h6a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Change Password</span>
+            </div>
+            <div class="account-password-card-subtitle">Keep your account secure</div>
+          </div>
+          <div class="account-password-divider"></div>
+          <form id="accountPasswordForm" class="account-password-form">
+            <label>CURRENT PASSWORD
+              <span class="password-field">
+                <input type="password" id="accountCurrentPassword" required />
+                <button type="button" class="password-toggle" data-target="accountCurrentPassword" aria-label="Show current password">
+                  <svg class="icon-eye icon-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Zm10 3.5A3.5 3.5 0 1 0 8.5 12 3.5 3.5 0 0 0 12 15.5Zm0-2A1.5 1.5 0 1 1 13.5 12 1.5 1.5 0 0 1 12 13.5Z" fill="currentColor"/></svg>
+                  <svg class="icon-eye icon-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.5c6.5 0 10 6.5 10 6.5s-3.5 6.5-10 6.5S2 12 2 12s3.5-6.5 10-6.5Zm0 2a4.5 4.5 0 1 0 4.5 4.5A4.5 4.5 0 0 0 12 7.5Z" fill="currentColor"/></svg>
+                </button>
+              </span>
+            </label>
+            <label>NEW PASSWORD
+              <span class="password-field">
+                <input type="password" id="accountNewPassword" required />
+                <button type="button" class="password-toggle" data-target="accountNewPassword" aria-label="Show new password">
+                  <svg class="icon-eye icon-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Zm10 3.5A3.5 3.5 0 1 0 8.5 12 3.5 3.5 0 0 0 12 15.5Zm0-2A1.5 1.5 0 1 1 13.5 12 1.5 1.5 0 0 1 12 13.5Z" fill="currentColor"/></svg>
+                  <svg class="icon-eye icon-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.5c6.5 0 10 6.5 10 6.5s-3.5 6.5-10 6.5S2 12 2 12s3.5-6.5 10-6.5Zm0 2a4.5 4.5 0 1 0 4.5 4.5A4.5 4.5 0 0 0 12 7.5Z" fill="currentColor"/></svg>
+                </button>
+              </span>
+              <div class="password-strength" id="accountPasswordStrengthWrap">
+                <div class="password-strength-track"><div class="password-strength-fill" id="accountPasswordStrengthFill"></div></div>
+                <div class="password-strength-label" id="accountPasswordStrengthLabel">Enter a password</div>
+              </div>
+            </label>
+            <label>CONFIRM NEW PASSWORD
+              <span class="password-field">
+                <input type="password" id="accountConfirmPassword" required />
+                <button type="button" class="password-toggle" data-target="accountConfirmPassword" aria-label="Show confirm password">
+                  <svg class="icon-eye icon-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Zm10 3.5A3.5 3.5 0 1 0 8.5 12 3.5 3.5 0 0 0 12 15.5Zm0-2A1.5 1.5 0 1 1 13.5 12 1.5 1.5 0 0 1 12 13.5Z" fill="currentColor"/></svg>
+                  <svg class="icon-eye icon-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.5c6.5 0 10 6.5 10 6.5s-3.5 6.5-10 6.5S2 12 2 12s3.5-6.5 10-6.5Zm0 2a4.5 4.5 0 1 0 4.5 4.5A4.5 4.5 0 0 0 12 7.5Z" fill="currentColor"/></svg>
+                </button>
+              </span>
+            </label>
+            <p class="account-password-note">Minimum 10 characters — must include uppercase, lowercase, number, and special character.</p>
+            <p id="accountPasswordError" class="account-password-error hidden"></p>
+            <button type="submit" class="button primary account-password-submit">Update Password</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section class="tab-content" id="users">
+      <div class="card admin-card" id="userManagementCard">
+        <h2>User Management <span class="admin-badge">Admin Only</span></h2>
+        <form id="createUserForm" class="form-grid compact-grid">
+          <label>Username<input type="text" id="newUsername" required /><small class="field-error" id="newUsernameError"></small></label>
+          <label>First Name<input type="text" id="newFirstName" required /><small class="field-error" id="newFirstNameError"></small></label>
+          <label>Surname<input type="text" id="newSurname" required /><small class="field-error" id="newSurnameError"></small></label>
+          <label>Email<input type="email" id="newUserEmail" required /><small class="field-error" id="newUserEmailError"></small></label>
+          <label>Password<input type="password" id="newUserPassword" required /><small class="field-error" id="newUserPasswordError"></small></label>
+          <label>Profile Picture<input type="file" id="newProfilePicture" accept="image/*" /><small class="field-error" id="newProfilePictureError"></small></label>
+          <label>Role
+            <select id="newUserRole">
+              <option value="user" selected>User</option>
+              <option value="administrator">Administrator</option>
+            </select>
+          </label>
+          <button type="submit" class="button primary">Create User</button>
+        </form>
+        <div class="table-wrapper">
+          <table id="usersTable">
+            <thead><tr><th>ID</th><th>Full Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Must Reset</th><th class="created-col">Created</th><th class="actions-col">Actions</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card admin-card" id="engagementManagementCard">
+        <h2>Engagement Management <span class="admin-badge">Admin Only</span></h2>
+        <div class="table-wrapper">
+          <table id="engagementsAdminTable">
+            <thead><tr><th>ID</th><th>Engagement</th><th>Auditor</th><th>Year</th><th>Benchmark</th><th>Overall</th><th>Performance</th><th>Clearly Trivial</th><th>Created By</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card hidden" id="userEditCard">
+        <h2>Edit User</h2>
+        <form id="editUserForm" class="form-grid compact-grid">
+          <input type="hidden" id="editUserId" />
+          <label>Username<input type="text" id="editUsername" required /><small class="field-error" id="editUsernameError"></small></label>
+          <label>First Name<input type="text" id="editFirstName" required /><small class="field-error" id="editFirstNameError"></small></label>
+          <label>Surname<input type="text" id="editSurname" required /><small class="field-error" id="editSurnameError"></small></label>
+          <label>Email<input type="email" id="editUserEmail" required /><small class="field-error" id="editUserEmailError"></small></label>
+          <label>Profile Picture<input type="file" id="editProfilePicture" accept="image/*" /><small class="field-error" id="editProfilePictureError"></small></label>
+          <div class="edit-profile-preview-wrap">
+            <span class="account-avatar account-avatar-small" id="editProfilePreview">TA</span>
+          </div>
+          <label>Role
+            <select id="editUserRole">
+              <option value="user">User</option>
+              <option value="administrator">Administrator</option>
+            </select>
+          </label>
+          <button type="submit" class="button primary">Save Changes</button>
+          <button type="button" class="button secondary" id="cancelEditUser">Cancel</button>
+        </form>
+      </div>
+
+      <div class="card hidden" id="passwordSetCard">
+        <h2>Set Password</h2>
+        <form id="setPasswordForm" class="form-grid compact-grid">
+          <input type="hidden" id="setPasswordUserId" />
+          <label>New Password<input type="password" id="setPasswordValue" required /><small class="field-error" id="setPasswordValueError"></small></label>
+          <label>Confirm Password<input type="password" id="confirmPasswordValue" required /><small class="field-error" id="confirmPasswordValueError"></small></label>
+          <button type="submit" class="button primary">Update Password</button>
+          <button type="button" class="button secondary" id="cancelSetPassword">Cancel</button>
+        </form>
+      </div>
+
+      <div class="card hidden" id="engagementEditCard">
+        <h2>Edit Engagement</h2>
+        <form id="editEngagementForm" class="form-grid">
+          <input type="hidden" id="editEngagementId" />
+          <label>Client Name<input type="text" id="editClientName" required /></label>
+          <label>Engagement Ref<input type="text" id="editEngagementRef" required /></label>
+          <label>Auditor Name<input type="text" id="editAuditorName" required /></label>
+          <label>Financial Year<input type="text" id="editFinancialYear" required /></label>
+          <label>Benchmark
+            <select id="editMaterialityBenchmark">
+              <option value="Revenue">Revenue</option>
+              <option value="Income before tax">Income before tax</option>
+              <option value="Total Assets">Total Assets</option>
+              <option value="Gross revenue or expenditure">Gross revenue or expenditure</option>
+            </select>
+          </label>
+          <label>Benchmark Figure<input type="number" id="editMaterialityBase" step="0.01" required /></label>
+          <label>Chosen Benchmark %<input type="number" id="editMaterialityPercent" step="0.01" required /></label>
+          <label>Overall Materiality<input type="number" id="editMateriality" step="0.01" required /></label>
+          <label>Performance %<input type="number" id="editPerformancePercent" step="0.01" required /></label>
+          <label>Performance Materiality<input type="number" id="editPerformanceMateriality" step="0.01" required /></label>
+          <label>Clearly Trivial %<input type="number" id="editClearlyTrivialPercent" step="0.01" required /></label>
+          <label>Clearly Trivial Threshold<input type="number" id="editClearlyTrivialThreshold" step="0.01" required /></label>
+          <button type="submit" class="button primary">Save Engagement</button>
+          <button type="button" class="button secondary" id="cancelEditEngagement">Cancel</button>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <div id="passwordWarningToast" class="password-warning-toast hidden" role="status" aria-live="polite">
+    <div class="password-warning-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+        <path d="M12 2a2 2 0 0 0-2 2v1.1A7 7 0 0 0 5 12v4l-1.5 2.5A1 1 0 0 0 4.3 20h15.4a1 1 0 0 0 .8-1.5L19 16v-4a7 7 0 0 0-5-6.9V4a2 2 0 0 0-2-2Zm0 20a2.2 2.2 0 0 0 2.1-1.6h-4.2A2.2 2.2 0 0 0 12 22Z" fill="currentColor"/>
+      </svg>
+    </div>
+    <button id="passwordWarningClose" class="password-warning-close" type="button" aria-label="Dismiss notification">×</button>
+    <div class="password-warning-content">
+      <h3>Password Update Recommended</h3>
+      <p>Please update your password in your Account settings.</p>
+      <a href="#" id="passwordWarningAccountLink" class="password-warning-link">Go to Account Settings</a>
+    </div>
+  </div>
+
+  <div class="password-modal hidden" id="passwordModal" aria-modal="true" role="dialog" aria-labelledby="passwordModalHeading">
+    <div class="password-modal-backdrop" aria-hidden="true"></div>
+    <div class="password-modal-card">
+      <button class="password-modal-close" id="passwordModalClose" type="button" aria-label="Close">×</button>
+      <div class="password-modal-body">
+        <div class="password-modal-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M6 10V8a6 6 0 0 1 12 0v2m-9 0h6a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h2 id="passwordModalHeading">Change Password</h2>
+        <p class="password-modal-subtitle">Update your password to keep your account secure.</p>
+        <div class="password-modal-divider"></div>
+        <form id="passwordModalForm" class="password-modal-form">
+          <label>CURRENT PASSWORD
+            <span class="password-field">
+              <input type="password" id="passwordModalCurrentPassword" required />
+              <button type="button" class="password-toggle" data-target="passwordModalCurrentPassword" aria-label="Show current password">
+                <svg class="icon-eye icon-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Zm10 3.5A3.5 3.5 0 1 0 8.5 12 3.5 3.5 0 0 0 12 15.5Zm0-2A1.5 1.5 0 1 1 13.5 12 1.5 1.5 0 0 1 12 13.5Z" fill="currentColor"/></svg>
+                <svg class="icon-eye icon-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.5c6.5 0 10 6.5 10 6.5s-3.5 6.5-10 6.5S2 12 2 12s3.5-6.5 10-6.5Zm0 2a4.5 4.5 0 1 0 4.5 4.5A4.5 4.5 0 0 0 12 7.5Z" fill="currentColor"/></svg>
+              </button>
+            </span>
+          </label>
+          <label>NEW PASSWORD
+            <span class="password-field">
+              <input type="password" id="passwordModalNewPassword" required />
+              <button type="button" class="password-toggle" data-target="passwordModalNewPassword" aria-label="Show new password">
+                <svg class="icon-eye icon-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Zm10 3.5A3.5 3.5 0 1 0 8.5 12 3.5 3.5 0 0 0 12 15.5Zm0-2A1.5 1.5 0 1 1 13.5 12 1.5 1.5 0 0 1 12 13.5Z" fill="currentColor"/></svg>
+                <svg class="icon-eye icon-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.5c6.5 0 10 6.5 10 6.5s-3.5 6.5-10 6.5S2 12 2 12s3.5-6.5 10-6.5Zm0 2a4.5 4.5 0 1 0 4.5 4.5A4.5 4.5 0 0 0 12 7.5Z" fill="currentColor"/></svg>
+              </button>
+            </span>
+            <div class="password-strength" id="passwordModalStrengthWrap">
+              <div class="password-strength-track"><div class="password-strength-fill" id="passwordModalStrengthFill"></div></div>
+              <div class="password-strength-label" id="passwordModalStrengthLabel">Enter a password</div>
+            </div>
+          </label>
+          <label>CONFIRM NEW PASSWORD
+            <span class="password-field">
+              <input type="password" id="passwordModalConfirmPassword" required />
+              <button type="button" class="password-toggle" data-target="passwordModalConfirmPassword" aria-label="Show confirm password">
+                <svg class="icon-eye icon-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Zm10 3.5A3.5 3.5 0 1 0 8.5 12 3.5 3.5 0 0 0 12 15.5Zm0-2A1.5 1.5 0 1 1 13.5 12 1.5 1.5 0 0 1 12 13.5Z" fill="currentColor"/></svg>
+                <svg class="icon-eye icon-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.5c6.5 0 10 6.5 10 6.5s-3.5 6.5-10 6.5S2 12 2 12s3.5-6.5 10-6.5Zm0 2a4.5 4.5 0 1 0 4.5 4.5A4.5 4.5 0 0 0 12 7.5Z" fill="currentColor"/></svg>
+              </button>
+            </span>
+          </label>
+          <p class="password-modal-note">Minimum 10 characters — must include uppercase, lowercase, number, and special character.</p>
+          <p id="passwordModalError" class="password-modal-error hidden"></p>
+          <button type="submit" class="button primary password-modal-submit">Update Password</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="app.js?v=20260706l"></script>
+</body>
+</html>
